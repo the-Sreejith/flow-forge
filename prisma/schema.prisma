@@ -1,0 +1,115 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("user")
+  subscription  String    @default("free")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts  Account[]
+  sessions  Session[]
+  workflows Workflow[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Workflow {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  status       String   @default("inactive")
+  category     String   @default("General")
+  tags         String[]
+  isPublic     Boolean  @default(false)
+  nodes        Json?
+  edges        Json?
+  trigger      Json?
+  schedule     Json?
+  version      String   @default("1.0.0")
+  runs         Int      @default(0)
+  successRate  Float    @default(0)
+  lastError    Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastModified DateTime @default(now())
+
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions Execution[]
+
+  @@map("workflows")
+}
+
+model Execution {
+  id             String    @id @default(cuid())
+  workflowId     String
+  status         String
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+  duration       Int?
+  triggeredBy    String
+  inputData      Json?
+  outputData     Json?
+  steps          Json?
+  logs           Json?
+  metrics        Json?
+  stepsCompleted Int       @default(0)
+  totalSteps     Int       @default(0)
+  error          Json?
+  testMode       Boolean   @default(false)
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("executions")
+}

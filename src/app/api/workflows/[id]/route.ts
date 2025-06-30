@@ -1,169 +1,80 @@
+// src/app/api/workflows/[id]/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth'; // Adjust path as needed
+import { PrismaClient } from '@prisma/client';
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Mock workflow detail with nodes and edges
-const mockWorkflowDetails = {
-  '1': {
-    id: '1',
-    name: 'Customer Onboarding',
-    description: 'Automated customer welcome email sequence with personalized content',
-    status: 'active',
-    lastModified: '2024-01-15T10:30:00Z',
-    createdAt: '2024-01-01T00:00:00Z',
-    runs: 1250,
-    successRate: 98.5,
-    nodes: 8,
-    category: 'Marketing',
-    tags: ['email', 'automation', 'onboarding'],
-    owner: {
-      id: '1',
-      name: 'John Doe',
-      email: 'john@example.com'
-    },
-    trigger: {
-      type: 'webhook',
-      config: {
-        url: 'https://api.flowforge.com/webhooks/customer-signup'
-      }
-    },
-    schedule: null,
-    isPublic: false,
-    version: '1.2.0',
-    workflow: {
-      nodes: [
-        {
-          id: 'trigger-1',
-          type: 'custom',
-          position: { x: 250, y: 50 },
-          data: {
-            label: 'New Customer Signup',
-            type: 'webhook',
-            icon: 'Webhook',
-            color: 'green',
-            description: 'Triggered when new customer signs up',
-            config: {
-              url: 'https://api.flowforge.com/webhooks/customer-signup',
-              method: 'POST'
-            }
-          }
-        },
-        {
-          id: 'email-1',
-          type: 'custom',
-          position: { x: 250, y: 200 },
-          data: {
-            label: 'Welcome Email',
-            type: 'email',
-            icon: 'Mail',
-            color: 'blue',
-            description: 'Send welcome email to new customer',
-            config: {
-              to: '{{customer.email}}',
-              subject: 'Welcome to FlowForge!',
-              template: 'welcome-email'
-            }
-          }
-        },
-        {
-          id: 'delay-1',
-          type: 'custom',
-          position: { x: 250, y: 350 },
-          data: {
-            label: 'Wait 24 Hours',
-            type: 'delay',
-            icon: 'Clock',
-            color: 'yellow',
-            description: 'Wait 24 hours before next step',
-            config: {
-              duration: 86400,
-              unit: 'seconds'
-            }
-          }
-        },
-        {
-          id: 'email-2',
-          type: 'custom',
-          position: { x: 250, y: 500 },
-          data: {
-            label: 'Follow-up Email',
-            type: 'email',
-            icon: 'Mail',
-            color: 'blue',
-            description: 'Send follow-up email with tips',
-            config: {
-              to: '{{customer.email}}',
-              subject: 'Getting Started with FlowForge',
-              template: 'getting-started-email'
-            }
-          }
-        }
-      ],
-      edges: [
-        {
-          id: 'e1-2',
-          source: 'trigger-1',
-          target: 'email-1',
-          type: 'smoothstep'
-        },
-        {
-          id: 'e2-3',
-          source: 'email-1',
-          target: 'delay-1',
-          type: 'smoothstep'
-        },
-        {
-          id: 'e3-4',
-          source: 'delay-1',
-          target: 'email-2',
-          type: 'smoothstep'
-        }
-      ]
-    },
-    executions: {
-      recent: [
-        {
-          id: 'exec-1',
-          status: 'success',
-          startedAt: '2024-01-15T10:30:00Z',
-          completedAt: '2024-01-15T10:31:45Z',
-          duration: 105000,
-          triggeredBy: 'webhook'
-        },
-        {
-          id: 'exec-2',
-          status: 'success',
-          startedAt: '2024-01-15T09:15:00Z',
-          completedAt: '2024-01-15T09:16:30Z',
-          duration: 90000,
-          triggeredBy: 'webhook'
-        },
-        {
-          id: 'exec-3',
-          status: 'failed',
-          startedAt: '2024-01-15T08:00:00Z',
-          completedAt: '2024-01-15T08:00:15Z',
-          duration: 15000,
-          triggeredBy: 'webhook',
-          error: {
-            message: 'Email service unavailable',
-            code: 'EMAIL_SERVICE_ERROR'
-          }
-        }
-      ]
-    }
-  }
-};
+const prisma = new PrismaClient();
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    await delay(Math.random() * 300 + 200);
+    // Get the current user session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unauthorized',
+          code: 'UNAUTHORIZED'
+        },
+        { status: 401 }
+      );
+    }
+
+    // Find the user in the database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'User not found',
+          code: 'USER_NOT_FOUND'
+        },
+        { status: 404 }
+      );
+    }
 
     const workflowId = params.id;
-    const workflow = mockWorkflowDetails[workflowId as keyof typeof mockWorkflowDetails];
+
+    // Fetch workflow with user ownership check
+    const workflow = await prisma.workflow.findFirst({
+      where: {
+        id: workflowId,
+        userId: user.id // Ensure user owns this workflow
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        executions: {
+          orderBy: {
+            startedAt: 'desc'
+          },
+          take: 10, // Get recent executions
+          select: {
+            id: true,
+            status: true,
+            startedAt: true,
+            completedAt: true,
+            duration: true,
+            triggeredBy: true,
+            error: true
+          }
+        }
+      }
+    });
 
     if (!workflow) {
       return NextResponse.json(
@@ -176,12 +87,53 @@ export async function GET(
       );
     }
 
+    // Transform workflow data
+    const transformedWorkflow = {
+      id: workflow.id,
+      name: workflow.name,
+      description: workflow.description || '',
+      status: workflow.status,
+      lastModified: workflow.lastModified.toISOString(),
+      createdAt: workflow.createdAt.toISOString(),
+      runs: workflow.runs,
+      successRate: workflow.successRate,
+      nodes: workflow.nodes ? JSON.parse(JSON.stringify(workflow.nodes)) : [],
+      category: workflow.category,
+      tags: workflow.tags,
+      owner: {
+        id: workflow.user.id,
+        name: workflow.user.name || '',
+        email: workflow.user.email
+      },
+      trigger: workflow.trigger ? JSON.parse(JSON.stringify(workflow.trigger)) : null,
+      schedule: workflow.schedule ? JSON.parse(JSON.stringify(workflow.schedule)) : null,
+      isPublic: workflow.isPublic,
+      version: workflow.version,
+      lastError: workflow.lastError ? JSON.parse(JSON.stringify(workflow.lastError)) : null,
+      workflow: {
+        nodes: workflow.nodes ? JSON.parse(JSON.stringify(workflow.nodes)) : [],
+        edges: workflow.edges ? JSON.parse(JSON.stringify(workflow.edges)) : []
+      },
+      executions: {
+        recent: workflow.executions.map(exec => ({
+          id: exec.id,
+          status: exec.status,
+          startedAt: exec.startedAt.toISOString(),
+          completedAt: exec.completedAt?.toISOString() || null,
+          duration: exec.duration,
+          triggeredBy: exec.triggeredBy,
+          error: exec.error ? JSON.parse(JSON.stringify(exec.error)) : null
+        }))
+      }
+    };
+
     return NextResponse.json({
       success: true,
-      data: workflow
+      data: transformedWorkflow
     });
 
   } catch (error) {
+    console.error('Error fetching workflow:', error);
     return NextResponse.json(
       {
         success: false,
@@ -198,13 +150,48 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    await delay(Math.random() * 400 + 300);
+    // Get the current user session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unauthorized',
+          code: 'UNAUTHORIZED'
+        },
+        { status: 401 }
+      );
+    }
+
+    // Find the user in the database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'User not found',
+          code: 'USER_NOT_FOUND'
+        },
+        { status: 404 }
+      );
+    }
 
     const workflowId = params.id;
     const body = await request.json();
 
-    // Simulate workflow not found
-    if (workflowId === 'nonexistent') {
+    // Check if workflow exists and user owns it
+    const existingWorkflow = await prisma.workflow.findFirst({
+      where: {
+        id: workflowId,
+        userId: user.id
+      }
+    });
+
+    if (!existingWorkflow) {
       return NextResponse.json(
         {
           success: false,
@@ -215,7 +202,7 @@ export async function PUT(
       );
     }
 
-    // Simulate validation error
+    // Validate name if provided
     if (body.name && body.name.length < 3) {
       return NextResponse.json(
         {
@@ -227,20 +214,70 @@ export async function PUT(
       );
     }
 
-    const updatedWorkflow = {
-      id: workflowId,
-      ...body,
-      lastModified: new Date().toISOString(),
-      version: '1.3.0'
+    // Prepare update data
+    const updateData: any = {
+      lastModified: new Date()
+    };
+
+    // Only update fields that are provided
+    if (body.name !== undefined) updateData.name = body.name;
+    if (body.description !== undefined) updateData.description = body.description;
+    if (body.category !== undefined) updateData.category = body.category;
+    if (body.tags !== undefined) updateData.tags = body.tags;
+    if (body.isPublic !== undefined) updateData.isPublic = body.isPublic;
+    if (body.status !== undefined) updateData.status = body.status;
+    if (body.nodes !== undefined) updateData.nodes = body.nodes;
+    if (body.edges !== undefined) updateData.edges = body.edges;
+    if (body.trigger !== undefined) updateData.trigger = body.trigger;
+    if (body.schedule !== undefined) updateData.schedule = body.schedule;
+
+    // Update workflow in database
+    const updatedWorkflow = await prisma.workflow.update({
+      where: { id: workflowId },
+      data: updateData,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    // Transform response data
+    const transformedWorkflow = {
+      id: updatedWorkflow.id,
+      name: updatedWorkflow.name,
+      description: updatedWorkflow.description || '',
+      status: updatedWorkflow.status,
+      lastModified: updatedWorkflow.lastModified.toISOString(),
+      createdAt: updatedWorkflow.createdAt.toISOString(),
+      runs: updatedWorkflow.runs,
+      successRate: updatedWorkflow.successRate,
+      nodes: updatedWorkflow.nodes ? JSON.parse(JSON.stringify(updatedWorkflow.nodes)) : [],
+      category: updatedWorkflow.category,
+      tags: updatedWorkflow.tags,
+      owner: {
+        id: updatedWorkflow.user.id,
+        name: updatedWorkflow.user.name || '',
+        email: updatedWorkflow.user.email
+      },
+      trigger: updatedWorkflow.trigger ? JSON.parse(JSON.stringify(updatedWorkflow.trigger)) : null,
+      schedule: updatedWorkflow.schedule ? JSON.parse(JSON.stringify(updatedWorkflow.schedule)) : null,
+      isPublic: updatedWorkflow.isPublic,
+      version: updatedWorkflow.version
     };
 
     return NextResponse.json({
       success: true,
-      data: updatedWorkflow,
+      data: transformedWorkflow,
       message: 'Workflow updated successfully'
     });
 
   } catch (error) {
+    console.error('Error updating workflow:', error);
     return NextResponse.json(
       {
         success: false,
@@ -257,12 +294,47 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await delay(Math.random() * 200 + 100);
+    // Get the current user session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unauthorized',
+          code: 'UNAUTHORIZED'
+        },
+        { status: 401 }
+      );
+    }
+
+    // Find the user in the database
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'User not found',
+          code: 'USER_NOT_FOUND'
+        },
+        { status: 404 }
+      );
+    }
 
     const workflowId = params.id;
 
-    // Simulate workflow not found
-    if (workflowId === 'nonexistent') {
+    // Check if workflow exists and user owns it
+    const existingWorkflow = await prisma.workflow.findFirst({
+      where: {
+        id: workflowId,
+        userId: user.id
+      }
+    });
+
+    if (!existingWorkflow) {
       return NextResponse.json(
         {
           success: false,
@@ -273,8 +345,8 @@ export async function DELETE(
       );
     }
 
-    // Simulate cannot delete active workflow
-    if (workflowId === '1') {
+    // Check if workflow is active - prevent deletion of active workflows
+    if (existingWorkflow.status === 'active') {
       return NextResponse.json(
         {
           success: false,
@@ -285,12 +357,18 @@ export async function DELETE(
       );
     }
 
+    // Delete the workflow (executions will be cascade deleted)
+    await prisma.workflow.delete({
+      where: { id: workflowId }
+    });
+
     return NextResponse.json({
       success: true,
       message: 'Workflow deleted successfully'
     });
 
   } catch (error) {
+    console.error('Error deleting workflow:', error);
     return NextResponse.json(
       {
         success: false,

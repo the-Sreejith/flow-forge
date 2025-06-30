@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,88 +9,132 @@ import { Sidebar } from '@/components/dashboard/sidebar';
 import { WorkflowCard } from '@/components/dashboard/workflow-card';
 import { StatsCards } from '@/components/dashboard/stats-cards';
 import { AuthGuard } from '@/components/auth/auth-guard';
-import { Plus, Search, Filter, Grid3X3, List, MoreVertical } from 'lucide-react';
+import { Plus, Search, Filter, Grid3X3, List, MoreVertical, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-// Mock data
-const mockWorkflows = [
-  {
-    id: '1',
-    name: 'Customer Onboarding',
-    description: 'Automated customer welcome email sequence',
-    status: 'active' as const,
-    lastModified: '2024-01-15T10:30:00Z',
-    runs: 1250,
-    successRate: 98.5,
-    nodes: 8,
-    category: 'Marketing'
-  },
-  {
-    id: '2',
-    name: 'Invoice Processing',
-    description: 'Process and validate incoming invoices',
-    status: 'inactive' as const,
-    lastModified: '2024-01-14T16:45:00Z',
-    runs: 450,
-    successRate: 94.2,
-    nodes: 12,
-    category: 'Finance'
-  },
-  {
-    id: '3',
-    name: 'Social Media Posting',
-    description: 'Cross-platform social media automation',
-    status: 'active' as const,
-    lastModified: '2024-01-16T09:15:00Z',
-    runs: 890,
-    successRate: 99.1,
-    nodes: 6,
-    category: 'Marketing'
-  },
-  {
-    id: '4',
-    name: 'Data Backup',
-    description: 'Daily database backup and sync',
-    status: 'active' as const,
-    lastModified: '2024-01-13T22:00:00Z',
-    runs: 365,
-    successRate: 100,
-    nodes: 4,
-    category: 'Operations'
-  },
-  {
-    id: '5',
-    name: 'Lead Qualification',
-    description: 'Score and route incoming leads',
-    status: 'error' as const,
-    lastModified: '2024-01-12T14:20:00Z',
-    runs: 234,
-    successRate: 87.3,
-    nodes: 10,
-    category: 'Sales'
-  },
-  {
-    id: '6',
-    name: 'Inventory Management',
-    description: 'Track and reorder low stock items',
-    status: 'active' as const,
-    lastModified: '2024-01-11T11:30:00Z',
-    runs: 156,
-    successRate: 96.8,
-    nodes: 15,
-    category: 'Operations'
-  }
-];
+interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  status: 'active' | 'inactive' | 'error';
+  lastModified: string;
+  runs: number;
+  successRate: number;
+  nodes: number;
+  category: string;
+  tags: string[];
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  version: string;
+}
+
+interface ApiResponse {
+  success: boolean;
+  data: {
+    workflows: Workflow[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+    stats: {
+      total: number;
+      active: number;
+      inactive: number;
+      error: number;
+      totalRuns: number;
+      avgSuccessRate: number;
+    };
+    filters: {
+      categories: string[];
+      statuses: string[];
+    };
+  };
+  error?: string;
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    error: 0,
+    totalRuns: 0,
+    avgSuccessRate: 0
+  });
+  const [categories, setCategories] = useState<string[]>([]);
   const router = useRouter();
 
-  const filteredWorkflows = mockWorkflows.filter(workflow => {
+  // Fetch workflows from API
+  const fetchWorkflows = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams({
+        search: searchQuery,
+        status: statusFilter,
+        category: categoryFilter,
+        page: '1',
+        limit: '50' // Get more workflows for better filtering
+      });
+
+      const response = await fetch(`/api/workflows?${params}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch workflows');
+      }
+
+      const data: ApiResponse = await response.json();
+      
+      if (data.success) {
+        setWorkflows(data.data.workflows);
+        setStats(data.data.stats);
+        setCategories(data.data.filters.categories);
+      } else {
+        throw new Error(data.error || 'Failed to fetch workflows');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error('Error fetching workflows:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch workflows on component mount and when filters change
+  useEffect(() => {
+    if (session?.user) {
+      fetchWorkflows();
+    }
+  }, [session, searchQuery, statusFilter, categoryFilter]);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (session?.user) {
+        fetchWorkflows();
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const filteredWorkflows = workflows.filter(workflow => {
     const matchesSearch = workflow.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          workflow.description.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || workflow.status === statusFilter;
@@ -99,7 +143,9 @@ export default function DashboardPage() {
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
-  const categories = [...new Set(mockWorkflows.map(w => w.category))];
+  if (!session) {
+    return null; // AuthGuard will handle this
+  }
 
   return (
     <AuthGuard>
@@ -112,7 +158,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  Welcome back, {session?.user?.name}!
+                  Welcome back, {session.user?.name}!
                 </h1>
                 <p className="text-gray-600 mt-1">Manage and monitor your automation workflows</p>
               </div>
@@ -128,7 +174,9 @@ export default function DashboardPage() {
 
           {/* Stats */}
           <div className="px-6 py-4">
-            <StatsCards workflows={mockWorkflows} />
+            <StatsCards workflows={workflows} 
+            // stats={stats} loading={loading} 
+            />
           </div>
 
           {/* Filters and Search */}
@@ -142,11 +190,12 @@ export default function DashboardPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10"
+                    disabled={loading}
                   />
                 </div>
                 
                 <div className="flex gap-2">
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <Select value={statusFilter} onValueChange={setStatusFilter} disabled={loading}>
                     <SelectTrigger className="w-32">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
@@ -158,7 +207,7 @@ export default function DashboardPage() {
                     </SelectContent>
                   </Select>
 
-                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter} disabled={loading}>
                     <SelectTrigger className="w-40">
                       <SelectValue placeholder="Category" />
                     </SelectTrigger>
@@ -179,6 +228,7 @@ export default function DashboardPage() {
                     size="sm"
                     onClick={() => setViewMode('grid')}
                     className="px-3"
+                    disabled={loading}
                   >
                     <Grid3X3 className="h-4 w-4" />
                   </Button>
@@ -187,6 +237,7 @@ export default function DashboardPage() {
                     size="sm"
                     onClick={() => setViewMode('list')}
                     className="px-3"
+                    disabled={loading}
                   >
                     <List className="h-4 w-4" />
                   </Button>
@@ -197,19 +248,45 @@ export default function DashboardPage() {
 
           {/* Workflows Grid/List */}
           <div className="flex-1 overflow-auto p-6">
-            {filteredWorkflows.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                <span className="ml-2 text-gray-600">Loading workflows...</span>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <div className="w-24 h-24 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                  <Search className="h-8 w-8 text-red-400" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading workflows</h3>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <Button 
+                  onClick={fetchWorkflows}
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : filteredWorkflows.length === 0 ? (
               <div className="text-center py-12">
                 <div className="w-24 h-24 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
                   <Search className="h-8 w-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No workflows found</h3>
-                <p className="text-gray-600 mb-6">Try adjusting your search or filter criteria</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {workflows.length === 0 ? 'No workflows yet' : 'No workflows found'}
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  {workflows.length === 0 
+                    ? 'Get started by creating your first workflow'
+                    : 'Try adjusting your search or filter criteria'
+                  }
+                </p>
                 <Button 
                   onClick={() => router.push('/workflow/new')}
                   className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                 >
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Workflow
+                  {workflows.length === 0 ? 'Create Your First Workflow' : 'Create New Workflow'}
                 </Button>
               </div>
             ) : (
@@ -223,6 +300,7 @@ export default function DashboardPage() {
                     key={workflow.id} 
                     workflow={workflow} 
                     viewMode={viewMode}
+                    // onUpdate={fetchWorkflows} // Refresh data after updates
                   />
                 ))}
               </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useSession } from '@/components/providers/session-provider';
+import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
 export default function Home() {

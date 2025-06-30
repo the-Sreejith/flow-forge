@@ -1,7 +1,5 @@
 // This is your Prisma schema file,
-// COMMENTED OUT FOR NOW - USING MOCK DATABASE INSTEAD
 
-/*
 generator client {
   provider = "prisma-client-js"
 }
@@ -114,6 +112,3 @@ model Execution {
 
   @@map("executions")
 }
-*/
-
-// USING MOCK DATABASE INSTEAD - SEE src/lib/mock-db.ts

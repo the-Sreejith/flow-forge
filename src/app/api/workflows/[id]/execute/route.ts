@@ -1,8 +1,11 @@
 // src/app/api/workflows/[id]/execute/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth'; // Adjust path as needed
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -10,7 +13,7 @@ export async function POST(
 ) {
   try {
     // Get the current user session
-    const session = await getSession();
+    const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
       return NextResponse.json(

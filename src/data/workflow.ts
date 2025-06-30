@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSession } from '@/components/providers/session-provider';
+import { useSession } from 'next-auth/react';
 
 // Types
 export interface Workflow {

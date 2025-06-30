@@ -1,4 +1,5 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
+// import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
@@ -7,6 +8,7 @@ import { prisma } from "./prisma";
 
 export const authOptions: NextAuthOptions = {
   // Remove PrismaAdapter since we're using mock data
+  // adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
 
   providers: [

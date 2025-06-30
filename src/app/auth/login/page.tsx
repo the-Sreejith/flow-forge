@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { GuestGuard } from '@/components/auth/guest-guard';
-import { Eye, EyeOff, Mail, Lock, Chrome, Github, Workflow } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, Chrome, Github, Workflow, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
@@ -77,6 +77,16 @@ export default function LoginPage() {
     }
   };
 
+  const handleDemoLogin = (userType: 'user' | 'admin') => {
+    if (userType === 'user') {
+      setEmail('john@example.com');
+      setPassword('password');
+    } else {
+      setEmail('admin@example.com');
+      setPassword('admin123');
+    }
+  };
+
   return (
     <GuestGuard>
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4">
@@ -91,6 +101,48 @@ export default function LoginPage() {
             <h1 className="text-3xl font-bold text-gray-900">FlowForge</h1>
             <p className="text-gray-600 mt-2">Visual Workflow Automation</p>
           </div>
+
+          {/* Demo Accounts Info */}
+          <Card className="backdrop-blur-sm bg-blue-50/80 border-blue-200">
+            <CardContent className="p-4">
+              <div className="flex items-start space-x-3">
+                <Info className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="space-y-3">
+                  <h3 className="font-medium text-blue-900">Demo Accounts Available</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-blue-800">Regular User</p>
+                        <p className="text-blue-600">john@example.com / password</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleDemoLogin('user')}
+                        className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                      >
+                        Use
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-blue-800">Admin User</p>
+                        <p className="text-blue-600">admin@example.com / admin123</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleDemoLogin('admin')}
+                        className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                      >
+                        Use
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card className="backdrop-blur-sm bg-white/80 border-white/20 shadow-xl">
             <CardHeader className="space-y-1">

@@ -2,6 +2,7 @@
 // This replaces Prisma with in-memory data storage
 
 import { formatDistanceToNow } from 'date-fns';
+import bcrypt from 'bcryptjs';
 
 // Generate unique IDs
 let idCounter = 1;
@@ -16,21 +17,67 @@ let mockSessions: any[] = [];
 let mockVerificationTokens: any[] = [];
 
 // Initialize with some sample data
-const initializeSampleData = () => {
-  // Sample user
-  const sampleUser = {
-    id: generateId(),
-    name: 'John Doe',
-    email: 'john@example.com',
-    emailVerified: null,
-    image: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg',
-    password: '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/hL.hl.hl.', // hashed 'password'
-    role: 'user',
-    subscription: 'free',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  mockUsers.push(sampleUser);
+const initializeSampleData = async () => {
+  // Create hashed passwords
+  const hashedPassword = await bcrypt.hash('password', 12);
+  const hashedAdminPassword = await bcrypt.hash('admin123', 12);
+
+  // Sample users
+  const sampleUsers = [
+    {
+      id: generateId(),
+      name: 'John Doe',
+      email: 'john@example.com',
+      emailVerified: null,
+      image: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg',
+      password: hashedPassword, // password: 'password'
+      role: 'user',
+      subscription: 'free',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: generateId(),
+      name: 'Admin User',
+      email: 'admin@example.com',
+      emailVerified: new Date(),
+      image: 'https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg',
+      password: hashedAdminPassword, // password: 'admin123'
+      role: 'admin',
+      subscription: 'pro',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: generateId(),
+      name: 'Jane Smith',
+      email: 'jane@example.com',
+      emailVerified: new Date(),
+      image: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg',
+      password: hashedPassword, // password: 'password'
+      role: 'user',
+      subscription: 'pro',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: generateId(),
+      name: 'Demo User',
+      email: 'demo@example.com',
+      emailVerified: new Date(),
+      image: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg',
+      password: hashedPassword, // password: 'password'
+      role: 'user',
+      subscription: 'free',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+  ];
+  
+  mockUsers.push(...sampleUsers);
+
+  // Use the first user (John Doe) as the default workflow owner
+  const defaultUser = sampleUsers[0];
 
   // Sample workflows
   const sampleWorkflows = [
@@ -62,7 +109,7 @@ const initializeSampleData = () => {
       createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
       updatedAt: new Date(),
       lastModified: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-      userId: sampleUser.id,
+      userId: defaultUser.id,
     },
     {
       id: generateId(),
@@ -92,7 +139,7 @@ const initializeSampleData = () => {
       createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000), // 14 days ago
       updatedAt: new Date(),
       lastModified: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-      userId: sampleUser.id,
+      userId: defaultUser.id,
     },
     {
       id: generateId(),
@@ -126,7 +173,7 @@ const initializeSampleData = () => {
       createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
       updatedAt: new Date(),
       lastModified: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-      userId: sampleUser.id,
+      userId: defaultUser.id,
     },
     {
       id: generateId(),
@@ -154,7 +201,7 @@ const initializeSampleData = () => {
       createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
       updatedAt: new Date(),
       lastModified: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-      userId: sampleUser.id,
+      userId: defaultUser.id,
     },
     {
       id: generateId(),
@@ -184,7 +231,36 @@ const initializeSampleData = () => {
       createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
       updatedAt: new Date(),
       lastModified: new Date(Date.now() - 6 * 60 * 60 * 1000), // 6 hours ago
-      userId: sampleUser.id,
+      userId: defaultUser.id,
+    },
+    // Add some workflows for other users
+    {
+      id: generateId(),
+      name: 'Email Newsletter',
+      description: 'Weekly newsletter automation for subscribers',
+      status: 'active',
+      category: 'Marketing',
+      tags: ['newsletter', 'email', 'weekly'],
+      isPublic: false,
+      nodes: [
+        { id: '1', type: 'schedule', data: { label: 'Weekly Trigger' } },
+        { id: '2', type: 'content', data: { label: 'Fetch Articles' } },
+        { id: '3', type: 'email', data: { label: 'Send Newsletter' } }
+      ],
+      edges: [
+        { id: 'e1-2', source: '1', target: '2' },
+        { id: 'e2-3', source: '2', target: '3' }
+      ],
+      trigger: null,
+      schedule: { type: 'weekly', day: 'monday', time: '10:00' },
+      version: '1.0.0',
+      runs: 12,
+      successRate: 100,
+      lastError: null,
+      createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+      updatedAt: new Date(),
+      lastModified: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
+      userId: sampleUsers[2].id, // Jane Smith
     }
   ];
 
@@ -209,14 +285,29 @@ const initializeSampleData = () => {
       totalSteps: 4,
       error: null,
       testMode: false,
+    },
+    {
+      id: generateId(),
+      workflowId: sampleWorkflows[1].id,
+      status: 'success',
+      startedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      completedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 85000),
+      duration: 85000,
+      triggeredBy: 'schedule',
+      inputData: { content: 'Daily motivation post' },
+      outputData: { postsCreated: 2, success: true },
+      steps: [],
+      logs: [],
+      metrics: {},
+      stepsCompleted: 4,
+      totalSteps: 4,
+      error: null,
+      testMode: false,
     }
   ];
 
   mockExecutions.push(...sampleExecutions);
 };
-
-// Initialize sample data
-initializeSampleData();
 
 // Helper functions
 const findById = (array: any[], id: string) => array.find(item => item.id === id);
@@ -740,3 +831,6 @@ export const mockDb = {
     verificationTokens: mockVerificationTokens,
   }),
 };
+
+// Initialize sample data when the module loads
+initializeSampleData();

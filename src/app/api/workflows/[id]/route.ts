@@ -1,8 +1,7 @@
 // src/app/api/workflows/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(
@@ -11,7 +10,7 @@ export async function GET(
 ) {
   try {
     // Get the current user session
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -149,7 +148,7 @@ export async function PUT(
 ) {
   try {
     // Get the current user session
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -293,7 +292,7 @@ export async function DELETE(
 ) {
   try {
     // Get the current user session
-    const session = await getServerSession(authOptions);
+    const session = await getSession();
     
     if (!session?.user?.email) {
       return NextResponse.json(

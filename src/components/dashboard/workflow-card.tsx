@@ -33,44 +33,35 @@ import {
   TrendingUp,
   Activity,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  TestTube,
+  Loader2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-
-interface Workflow {
-  id: string;
-  name: string;
-  description: string;
-  status: 'active' | 'inactive' | 'error';
-  lastModified: string;
-  runs: number;
-  successRate: number;
-  nodes: number;
-  category: string;
-}
+import { workflowUtils, type Workflow } from '@/data/workflow';
 
 interface WorkflowCardProps {
   workflow: Workflow;
   viewMode: 'grid' | 'list';
+  onDelete?: (id: string, name: string) => Promise<void>;
+  onExecute?: (id: string, name: string, testMode?: boolean) => Promise<any>;
+  onToggleStatus?: (id: string, currentStatus: string, name: string) => Promise<void>;
+  onDuplicate?: (workflow: Workflow) => void;
+  isLoading?: boolean;
 }
 
-export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
+export function WorkflowCard({ 
+  workflow, 
+  viewMode, 
+  onDelete,
+  onExecute,
+  onToggleStatus,
+  onDuplicate,
+  isLoading = false
+}: WorkflowCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const router = useRouter();
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'inactive':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-      case 'error':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -89,28 +80,54 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
     router.push(`/workflow/${workflow.id}`);
   };
 
-  const handleRun = async () => {
-    setIsLoading(true);
-    // Simulate workflow run
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
+  const handleRun = async (testMode = false) => {
+    if (!onExecute) return;
+    
+    try {
+      setActionLoading(testMode ? 'test' : 'run');
+      await onExecute(workflow.id, workflow.name, testMode);
+    } catch (error) {
+      // Error handling is done in parent component
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const handleToggleStatus = () => {
-    // Handle status toggle
-    console.log('Toggle status for workflow:', workflow.id);
+  const handleToggleStatus = async () => {
+    if (!onToggleStatus) return;
+    
+    try {
+      setActionLoading('toggle');
+      await onToggleStatus(workflow.id, workflow.status, workflow.name);
+    } catch (error) {
+      // Error handling is done in parent component
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleDuplicate = () => {
-    // Handle workflow duplication
-    console.log('Duplicate workflow:', workflow.id);
+    if (onDuplicate) {
+      onDuplicate(workflow);
+    }
   };
 
-  const handleDelete = () => {
-    // Handle workflow deletion
-    console.log('Delete workflow:', workflow.id);
-    setShowDeleteDialog(false);
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    
+    try {
+      setActionLoading('delete');
+      await onDelete(workflow.id, workflow.name);
+      setShowDeleteDialog(false);
+    } catch (error) {
+      // Error handling is done in parent component
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const isActionLoading = (action: string) => {
+    return actionLoading === action || isLoading;
   };
 
   if (viewMode === 'list') {
@@ -123,7 +140,7 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-2">
                     <h3 className="font-semibold text-gray-900">{workflow.name}</h3>
-                    <Badge className={`${getStatusColor(workflow.status)} text-xs px-2 py-1`}>
+                    <Badge className={`${workflowUtils.getStatusColor(workflow.status)} text-xs px-2 py-1`}>
                       <div className="flex items-center space-x-1">
                         {getStatusIcon(workflow.status)}
                         <span className="capitalize">{workflow.status}</span>
@@ -137,7 +154,7 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                   <div className="flex items-center space-x-4 text-xs text-gray-500">
                     <div className="flex items-center space-x-1">
                       <Clock className="h-3 w-3" />
-                      <span>Modified {formatDistanceToNow(new Date(workflow.lastModified))} ago</span>
+                      <span>Modified {workflowUtils.formatLastModified(workflow.lastModified)}</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <Activity className="h-3 w-3" />
@@ -145,7 +162,9 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                     </div>
                     <div className="flex items-center space-x-1">
                       <TrendingUp className="h-3 w-3" />
-                      <span>{workflow.successRate}% success</span>
+                      <span className={workflowUtils.getSuccessRateColor(workflow.successRate)}>
+                        {workflow.successRate}% success
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -155,12 +174,31 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleRun}
-                  disabled={isLoading}
+                  onClick={() => handleRun(true)}
+                  disabled={isActionLoading('test')}
                 >
-                  <Play className="h-4 w-4 mr-1" />
-                  {isLoading ? 'Running...' : 'Run'}
+                  {isActionLoading('test') ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <TestTube className="h-4 w-4 mr-1" />
+                  )}
+                  Test
                 </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleRun(false)}
+                  disabled={isActionLoading('run')}
+                >
+                  {isActionLoading('run') ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="h-4 w-4 mr-1" />
+                  )}
+                  Run
+                </Button>
+                
                 <Button
                   variant="outline"
                   size="sm"
@@ -172,23 +210,20 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" disabled={isLoading}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleToggleStatus}>
-                      {workflow.status === 'active' ? (
-                        <>
-                          <Pause className="mr-2 h-4 w-4" />
-                          Deactivate
-                        </>
+                    <DropdownMenuItem onClick={handleToggleStatus} disabled={isActionLoading('toggle')}>
+                      {isActionLoading('toggle') ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : workflow.status === 'active' ? (
+                        <Pause className="mr-2 h-4 w-4" />
                       ) : (
-                        <>
-                          <Play className="mr-2 h-4 w-4" />
-                          Activate
-                        </>
+                        <Play className="mr-2 h-4 w-4" />
                       )}
+                      {workflow.status === 'active' ? 'Deactivate' : 'Activate'}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={handleDuplicate}>
                       <Copy className="mr-2 h-4 w-4" />
@@ -198,8 +233,13 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                     <DropdownMenuItem 
                       onClick={() => setShowDeleteDialog(true)}
                       className="text-red-600"
+                      disabled={isActionLoading('delete')}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
+                      {isActionLoading('delete') ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
                       Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -218,9 +258,20 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-                Delete
+              <AlertDialogCancel disabled={isActionLoading('delete')}>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDelete} 
+                className="bg-red-600 hover:bg-red-700"
+                disabled={isActionLoading('delete')}
+              >
+                {isActionLoading('delete') ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -236,7 +287,7 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
-                <Badge className={`${getStatusColor(workflow.status)} text-xs px-2 py-1`}>
+                <Badge className={`${workflowUtils.getStatusColor(workflow.status)} text-xs px-2 py-1`}>
                   <div className="flex items-center space-x-1">
                     {getStatusIcon(workflow.status)}
                     <span className="capitalize">{workflow.status}</span>
@@ -256,7 +307,12 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  disabled={isLoading}
+                >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -265,18 +321,15 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                   <Edit3 className="mr-2 h-4 w-4" />
                   Edit
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleToggleStatus}>
-                  {workflow.status === 'active' ? (
-                    <>
-                      <Pause className="mr-2 h-4 w-4" />
-                      Deactivate
-                    </>
+                <DropdownMenuItem onClick={handleToggleStatus} disabled={isActionLoading('toggle')}>
+                  {isActionLoading('toggle') ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : workflow.status === 'active' ? (
+                    <Pause className="mr-2 h-4 w-4" />
                   ) : (
-                    <>
-                      <Play className="mr-2 h-4 w-4" />
-                      Activate
-                    </>
+                    <Play className="mr-2 h-4 w-4" />
                   )}
+                  {workflow.status === 'active' ? 'Deactivate' : 'Activate'}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleDuplicate}>
                   <Copy className="mr-2 h-4 w-4" />
@@ -286,8 +339,13 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
                 <DropdownMenuItem 
                   onClick={() => setShowDeleteDialog(true)}
                   className="text-red-600"
+                  disabled={isActionLoading('delete')}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
+                  {isActionLoading('delete') ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -303,16 +361,18 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
             </div>
             <div className="flex items-center space-x-2 text-gray-600">
               <TrendingUp className="h-4 w-4" />
-              <span>{workflow.successRate}% success</span>
+              <span className={workflowUtils.getSuccessRateColor(workflow.successRate)}>
+                {workflow.successRate}% success
+              </span>
             </div>
           </div>
           
           <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
             <div className="flex items-center space-x-1">
               <Clock className="h-3 w-3" />
-              <span>Modified {formatDistanceToNow(new Date(workflow.lastModified))} ago</span>
+              <span>Modified {workflowUtils.formatLastModified(workflow.lastModified)}</span>
             </div>
-            <span>{workflow.nodes} nodes</span>
+            <span>{workflow.nodes?.length || 0} nodes</span>
           </div>
           
           <div className="flex space-x-2">
@@ -320,20 +380,29 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
               variant="outline"
               size="sm"
               className="flex-1"
-              onClick={handleRun}
-              disabled={isLoading}
+              onClick={() => handleRun(true)}
+              disabled={isActionLoading('test')}
             >
-              <Play className="h-4 w-4 mr-1" />
-              {isLoading ? 'Running...' : 'Run'}
+              {isActionLoading('test') ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <TestTube className="h-4 w-4 mr-1" />
+              )}
+              Test
             </Button>
             <Button
               variant="default"
               size="sm"
               className="flex-1"
-              onClick={handleEdit}
+              onClick={() => handleRun(false)}
+              disabled={isActionLoading('run')}
             >
-              <Edit3 className="h-4 w-4 mr-1" />
-              Edit
+              {isActionLoading('run') ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-1" />
+              )}
+              Run
             </Button>
           </div>
         </CardContent>
@@ -348,9 +417,20 @@ export function WorkflowCard({ workflow, viewMode }: WorkflowCardProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              Delete
+            <AlertDialogCancel disabled={isActionLoading('delete')}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete} 
+              className="bg-red-600 hover:bg-red-700"
+              disabled={isActionLoading('delete')}
+            >
+              {isActionLoading('delete') ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

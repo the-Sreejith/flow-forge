@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn } from '@/lib/mock-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,7 +35,7 @@ export default function LoginPage() {
         redirect: false,
       });
 
-      if (result?.error) {
+      if (result.error) {
         setError('Invalid email or password');
         toast({
           title: 'Login Failed',
@@ -65,7 +65,14 @@ export default function LoginPage() {
   const handleOAuthLogin = async (provider: 'google' | 'github') => {
     setIsLoading(true);
     try {
-      await signIn(provider, { callbackUrl: '/dashboard' });
+      const result = await signIn(provider, { callbackUrl: '/dashboard' });
+      if (result.ok) {
+        toast({
+          title: 'Login Successful',
+          description: `Signed in with ${provider}`,
+        });
+        router.push('/dashboard');
+      }
     } catch (error) {
       toast({
         title: 'Error',

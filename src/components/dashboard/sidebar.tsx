@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession, signOut } from '@/lib/mock-auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
@@ -55,6 +55,7 @@ export function Sidebar() {
         title: 'Signed out',
         description: 'You have been successfully signed out.',
       });
+      router.push('/auth/login');
     } catch (error) {
       toast({
         title: 'Error',

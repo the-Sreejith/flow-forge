@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn } from '@/lib/mock-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -44,6 +44,12 @@ export default function RegisterPage() {
 
     if (!acceptTerms) {
       setError('Please accept the terms and conditions');
+      setIsLoading(false);
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
       setIsLoading(false);
       return;
     }
@@ -102,7 +108,14 @@ export default function RegisterPage() {
   const handleOAuthRegister = async (provider: 'google' | 'github') => {
     setIsLoading(true);
     try {
-      await signIn(provider, { callbackUrl: '/dashboard' });
+      const result = await signIn(provider, { callbackUrl: '/dashboard' });
+      if (result.ok) {
+        toast({
+          title: 'Account Created',
+          description: `Successfully signed up with ${provider}`,
+        });
+        router.push('/dashboard');
+      }
     } catch (error) {
       toast({
         title: 'Error',

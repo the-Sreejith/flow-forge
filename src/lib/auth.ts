@@ -1,3 +1,7 @@
+// COMMENTED OUT - USING MOCK AUTH INSTEAD
+// This file is preserved for future use when switching back to NextAuth
+
+/*
 import NextAuth, { type NextAuthOptions } from "next-auth";
 // import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -12,7 +16,7 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   providers: [
-    /* ──────────── Username / password ──────────── */
+    // Username / password
     CredentialsProvider({
       name: "credentials",
       credentials: {
@@ -32,7 +36,7 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-    /* ──────────── OAuth ──────────── */
+    // OAuth
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
@@ -96,3 +100,8 @@ export const authOptions: NextAuthOptions = {
 
   secret: process.env.NEXTAUTH_SECRET,
 };
+*/
+
+// Export mock auth functions for compatibility
+export { mockNextAuth as NextAuth } from './mock-auth';
+export { signIn, signOut, getSession } from './mock-auth';

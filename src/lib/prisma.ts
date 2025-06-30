@@ -1,9 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+// Mock Prisma Client
+// This file now exports the mock database instead of the real Prisma client
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+import { mockDb } from './mock-db';
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+// Export the mock database as prisma
+export const prisma = mockDb;
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// For compatibility, also export as default
+export default mockDb;

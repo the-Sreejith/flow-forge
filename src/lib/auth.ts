@@ -1,5 +1,4 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
@@ -7,7 +6,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Remove PrismaAdapter since we're using mock data
   session: { strategy: "jwt" },
 
   providers: [
@@ -57,6 +56,34 @@ export const authOptions: NextAuthOptions = {
         session.user.subscription = token.subscription as string;
       }
       return session;
+    },
+    async signIn({ user, account, profile }) {
+      // For OAuth providers, we'll create a user in our mock database
+      if (account?.provider !== 'credentials' && user.email) {
+        try {
+          // Check if user already exists
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email }
+          });
+
+          if (!existingUser) {
+            // Create new user
+            await prisma.user.create({
+              data: {
+                email: user.email,
+                name: user.name || '',
+                image: user.image || '',
+                role: 'user',
+                subscription: 'free',
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error creating user:', error);
+          return false;
+        }
+      }
+      return true;
     },
   },
 

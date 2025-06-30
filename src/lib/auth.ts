@@ -102,6 +102,36 @@ export const authOptions: NextAuthOptions = {
 };
 */
 
+import { prisma } from './prisma';
+
 // Export mock auth functions for compatibility
 export { mockNextAuth as NextAuth } from './mock-auth';
-export { signIn, signOut, getSession } from './mock-auth';
+export { signIn, signOut } from './mock-auth';
+
+// Server-side getSession function that works with the mock database
+export async function getSession() {
+  try {
+    // For server-side, we'll return the first user from mock database as a fallback
+    // In a real implementation, this would validate a JWT token or session cookie
+    const users = await prisma.user.findMany();
+    const currentUser = users.find(user => user.email === 'john@example.com') || users[0];
+    
+    if (!currentUser) {
+      return null;
+    }
+
+    return {
+      user: {
+        id: currentUser.id,
+        email: currentUser.email,
+        name: currentUser.name,
+        image: currentUser.image,
+        role: currentUser.role,
+        subscription: currentUser.subscription,
+      }
+    };
+  } catch (error) {
+    console.error('Error getting server session:', error);
+    return null;
+  }
+}
